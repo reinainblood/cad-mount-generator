@@ -4,6 +4,83 @@ import { db } from "@db";
 import { products, mounts } from "@db/schema";
 import { eq } from "drizzle-orm";
 
+async function parseAmazonProduct(url: string) {
+  // In a real implementation, this would make requests to Amazon's API
+  // For now, we'll detect keywords in the URL to return appropriate mock data
+  const urlLower = url.toLowerCase();
+
+  if (urlLower.includes('jetson') || urlLower.includes('nvidia')) {
+    return {
+      dimensions: { 
+        width: 100,
+        height: 29,
+        depth: 87,
+      },
+      metadata: {
+        name: "NVIDIA Jetson Nano Orin",
+        weight: "95g",
+        powerConnector: "USB-C",
+        thermalDesign: "active",
+        ports: {
+          usb: 2,
+          ethernet: 1,
+          hdmi: 1
+        }
+      },
+      productType: "compute_module",
+      compatibleWith: ["heatsink", "fan", "case"]
+    };
+  }
+
+  if (urlLower.includes('raspberry') || urlLower.includes('rpi')) {
+    return {
+      dimensions: {
+        width: 85,
+        height: 56,
+        depth: 17
+      },
+      metadata: {
+        name: "Raspberry Pi 4 Model B",
+        weight: "46g",
+        powerConnector: "USB-C",
+        thermalDesign: "passive",
+        ports: {
+          usb: 4,
+          ethernet: 1,
+          hdmi: 2,
+          gpio: 40
+        }
+      },
+      productType: "compute_module",
+      compatibleWith: ["heatsink", "fan", "case", "camera", "display"]
+    };
+  }
+
+  if (urlLower.includes('arduino')) {
+    return {
+      dimensions: {
+        width: 68.6,
+        height: 53.4,
+        depth: 12
+      },
+      metadata: {
+        name: "Arduino Uno R4",
+        weight: "25g",
+        powerConnector: "USB-C",
+        thermalDesign: "passive",
+        ports: {
+          usb: 1,
+          gpio: 32
+        }
+      },
+      productType: "compute_module",
+      compatibleWith: ["case", "shield"]
+    };
+  }
+
+  throw new Error("Unsupported product. Currently supporting Jetson, Raspberry Pi, and Arduino boards");
+}
+
 export function registerRoutes(app: Express) {
   const httpServer = createServer(app);
 
@@ -11,27 +88,14 @@ export function registerRoutes(app: Express) {
     try {
       const url = req.query.url as string;
 
-      // Mock implementation with Jetson Nano Orin support
-      const productData = {
-        dimensions: { 
-          width: 100, // mm
-          height: 29, // mm (Jetson Nano Orin height)
-          depth: 87,  // mm
-        },
-        metadata: {
-          name: "NVIDIA Jetson Nano Orin",
-          weight: "95g",
-          powerConnector: "USB-C",
-          thermalDesign: "active",
-          ports: {
-            usb: 2,
-            ethernet: 1,
-            hdmi: 1
-          }
-        },
-        productType: "compute_module",
-        compatibleWith: ["heatsink", "fan", "case"]
-      };
+      if (!url) {
+        return res.status(400).json({ 
+          error: "URL is required",
+          message: "Please provide an Amazon product URL"
+        });
+      }
+
+      const productData = await parseAmazonProduct(url);
 
       const result = await db.insert(products).values({
         amazonUrl: url,
@@ -43,7 +107,8 @@ export function registerRoutes(app: Express) {
 
       res.json(productData);
     } catch (error) {
-      res.status(500).json({ error: "Failed to parse Amazon URL" });
+      const message = error instanceof Error ? error.message : "Failed to parse Amazon URL";
+      res.status(400).json({ error: message });
     }
   });
 
@@ -116,10 +181,11 @@ module wallMount() {
         rotate([90, 0, 0])
           cylinder(h=20, d=5);
     }
-}` : ''}
+}
+` : ''}
 
 // Main assembly
 mainBody();
 ${requirements.mountType === 'wall' ? 'wallMount();' : ''}
-  `.trim();
+`.trim();
 }
